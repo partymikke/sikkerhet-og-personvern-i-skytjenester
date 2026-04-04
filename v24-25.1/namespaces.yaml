@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pseudonymrom
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bidragsrom
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: approm

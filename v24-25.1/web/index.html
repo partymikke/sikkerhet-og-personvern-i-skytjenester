@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>BIDRAG</title>
+  </head>
+  <body>
+
+    <!--
+      Dette skjemaet sender ALLTID til app-containeren (port 81).
+      Viktig: vi bruker full URL fordi web (8080) og app (8081) er forskjellige services.
+    -->
+    <form method="post" action="http://localhost:8081/cgi-bin/index.cgi">
+      <table>
+        <tr>
+          <td>E-Post</td>
+          <td><input name="epost" type="text"></td>
+        </tr>
+
+        <tr>
+          <td>Passord</td>
+          <td><input name="passord" type="password"></td>
+        </tr>
+
+        <tr>
+          <td>Tittel</td>
+          <td><input name="tittel" type="text"></td>
+        </tr>
+
+        <tr>
+          <td>Kommentar</td>
+          <td><textarea name="kommentar"></textarea></td>
+        </tr>
+
+        <tr>
+          <td>Tekst</td>
+          <td><textarea name="tekst"></textarea></td>
+        </tr>
+      </table>
+
+      <!--
+        Hver knapp sender "handling" til backend.
+        Backend bruker dette i case-switch (Ny, Endre, Slett, Liste osv.)
+      -->
+      <input type="submit" name="handling" value="Ny">
+      <input type="submit" name="handling" value="Endre">
+      <input type="submit" name="handling" value="Slett">
+      <input type="submit" name="handling" value="Liste">
+      <input type="submit" name="handling" value="Min">
+      <input type="submit" name="handling" value="Admin">
+
+    </form>
+
+  </body>
+</html>

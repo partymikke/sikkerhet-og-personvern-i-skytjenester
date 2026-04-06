@@ -1,24 +1,18 @@
 #!/bin/sh
 
-# ============================================================
-# BIDRAG-DB CGI
-# ============================================================
+# Håndterer lagring og behandling av brukerbidrag med fokus på personvern
 
 DB="/var/www/bidrag.db"
 sqlite3 "$DB" "DELETE FROM Bidrag WHERE created_at < datetime('now','-30 days');"
-# ============================================================
-# CONTENT LENGTH FIX
-# ============================================================
+# Sletter gamle data automatisk (GDPR lagringsbegrensning, artikkel 5)
+
+# Sørger for riktig lengde på request body for trygg behandling
 CONTENT_LENGTH=$HTTP_CONTENT_LENGTH$CONTENT_LENGTH
 
-# ============================================================
-# LOGGING
-# ============================================================
+# Logger at noe skjer, men uten persondata (GDPR ansvarlighet)
 echo "bidrag-db: request received" >&2
 
-# ============================================================
-# GET = LISTE (HTML OUTPUT)
-# ============================================================
+# Hvis GET: viser lagrede bidrag uten sensitiv info (dataminimering)
 if [ "$REQUEST_METHOD" = "GET" ]; then
     echo "Content-Type: text/plain"
     echo
@@ -34,20 +28,14 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     exit 0
 fi
 
-# ============================================================
-# HTTP HEADER
-# ============================================================
+# Forteller klient hva slags svar som sendes tilbake (åpenhet GDPR)
 echo "Content-Type: text/plain; charset=utf-8"
 echo
 
-# ============================================================
-# LES BODY
-# ============================================================
+# Leser kun innsendt data for videre behandling (dataminimering)
 KR=$(head -c "$CONTENT_LENGTH")
 
-# ============================================================
-# PARSE XML
-# ============================================================
+# Leser ut spesifikke felt fra XML (kun nødvendige data brukes)
 N=$(echo "$KR" | xmllint --xpath "string(/bidrag/navn)" - 2>/dev/null)
 P=$(echo "$KR" | xmllint --xpath "string(/bidrag/passord)" - 2>/dev/null)
 K=$(echo "$KR" | xmllint --xpath "string(/bidrag/kommentar)" - 2>/dev/null)
@@ -56,22 +44,19 @@ T=$(echo "$KR" | xmllint --xpath "string(/bidrag/tittel)" - 2>/dev/null)
 X=$(echo "$KR" | xmllint --xpath "string(/bidrag/tekst)" - 2>/dev/null)
 HND=$(echo "$KR" | xmllint --xpath "string(/bidrag/handling)" - 2>/dev/null)
 
-# ============================================================
-# INPUT-VALIDERING
-# ============================================================
+# Sjekker at vi har nødvendig identifikator (GDPR riktighet)
 if [ -z "$N" ]; then
     echo "Pseudonym mangler!"
     exit 0
 fi
 
+# Krever passord der det er nødvendig (tilgangskontroll, GDPR sikkerhet)
 if [ "$REQUEST_METHOD" != "GET" ] && [ -z "$P" ]; then
     echo "Passord mangler!"
     exit 0
 fi
 
-# ============================
-# MIN kommentar
-# ============================
+# Lar bruker hente egne data (GDPR innsynsrett, artikkel 15)
 if [ "$HND" = "Min" ]; then
     sqlite3 -separator '|' "$DB" "
         SELECT tittel, tekst, kommentar FROM Bidrag WHERE pseudonym='$N';
@@ -84,9 +69,8 @@ if [ "$HND" = "Min" ]; then
     done
     exit 0
 fi
-# ============================================================
-# NY (POST)
-# ============================================================
+
+# Oppretter nytt bidrag hvis det ikke finnes fra før (kontroll på duplikater)
 if [ "$REQUEST_METHOD" = "POST" ]; then
 
     EXISTS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM Bidrag WHERE pseudonym='$N';")
@@ -96,8 +80,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 0
     fi
 
+    # Lager tilfeldig salt for sikrere passordlagring (GDPR sikkerhet artikkel 32)
     S=$(for i in $(seq 11); do echo -n $(($RANDOM % 10)); done)
 
+    # Hasher passord før lagring (beskytter persondata)
     H=$(mkpasswd -m sha-256 -S "$S" "$P" | cut -f4 -d'$')
 
     sqlite3 "$DB" "
@@ -109,9 +95,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     exit 0
 fi
 
-# ============================================================
-# HENT SALT
-# ============================================================
+# Henter salt for å kunne verifisere passord sikkert
 S=$(sqlite3 "$DB" "SELECT salt FROM Bidrag WHERE pseudonym='$N';")
 
 if [ -z "$S" ]; then
@@ -119,36 +103,26 @@ if [ -z "$S" ]; then
     exit 0
 fi
 
-# ============================================================
-# HASH INPUT PASSORD
-# ============================================================
+# Lager hash av innsendt passord for sammenligning (sikker autentisering)
 H1=$(mkpasswd -m sha-256 -S "$S" "$P" | cut -f4 -d'$')
 
-# ============================================================
-# HENT LAGRET HASH
-# ============================================================
+# Henter lagret hash fra databasen
 H2=$(sqlite3 "$DB" "SELECT passordhash FROM Bidrag WHERE pseudonym='$N';")
 
-# ============================================================
-# SAMMENLIGN PASSORD
-# ============================================================
+# Sjekker om passord stemmer (tilgangskontroll, GDPR sikkerhet)
 if [ "$H1" != "$H2" ]; then
     echo "Feil passord!"
     exit 0
 fi
 
-# ============================================================
-# DELETE
-# ============================================================
+# Lar bruker slette egne data (GDPR retten til sletting, artikkel 17)
 if [ "$REQUEST_METHOD" = "DELETE" ]; then
     sqlite3 "$DB" "DELETE FROM Bidrag WHERE pseudonym='$N';"
     echo "Slettet"
     exit 0
 fi
 
-# ============================================================
-# PUT (ENDRE)
-# ============================================================
+# Lar bruker oppdatere egne data (GDPR retting, artikkel 16)
 if [ "$REQUEST_METHOD" = "PUT" ]; then
     sqlite3 "$DB" "
         UPDATE Bidrag SET

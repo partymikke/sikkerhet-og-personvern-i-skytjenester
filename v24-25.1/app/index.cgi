@@ -1,69 +1,49 @@
 #!/bin/sh
 
-# ============================================================
-# Enkel CGI for Allpodd
-# ✔ logging
-# ✔ input-validering
-# ✔ sikker XML-håndtering
-# ============================================================
-
-# ============================================================
-# HTTP HEADER
-# ============================================================
+# Enkel CGI med fokus på trygg databehandling (GDPR)
+ 
+# Forteller klient hva slags svar vi sender (åpenhet)
 echo "Content-Type: text/plain; charset=utf-8"
 echo
 
-# ============================================================
-# Tillat POST og GET
-# ============================================================
+# Tillater kun POST/GET for kontroll på input (GDPR kontroll)
 if [ "$REQUEST_METHOD" != "POST" ] && [ "$REQUEST_METHOD" != "GET" ]; then
   echo "Feil metode: $REQUEST_METHOD" >&2
   exit 0
 fi
 
-# ============================================================
-# CONTENT LENGTH FIX
-# ============================================================
+# Sørger for riktig lengde på data (unngår feil)
 CONTENT_LENGTH=$HTTP_CONTENT_LENGTH$CONTENT_LENGTH
 
-# ============================================================
-# LES BODY (kun hvis POST)
-# ============================================================
+# Leser kun data hvis nødvendig (dataminimering GDPR)
 if [ "$REQUEST_METHOD" = "POST" ]; then
   KROPP=$(head -c "$CONTENT_LENGTH")
 else
   KROPP=""
 fi
 
-# ============================================================
-# URL decode (enkel)
-# ============================================================
+# Gjør URL-data lesbart før behandling
 urldecode() {
   printf '%s' "$1" | sed 's/+/ /g; s/%40/@/g'
 }
 
-# ============================================================
-# XML escape
-# ============================================================
+# Hindrer injeksjon og beskytter systemet (GDPR sikkerhet)
 xml_escape() {
   printf '%s' "$1" | sed \
     -e 's/&/\&amp;/g' \
+    -e 's/</\&lt;/g' \
     -e 's/</\&lt;/g' \
     -e 's/>/\&gt;/g' \
     -e 's/"/\&quot;/g' \
     -e "s/'/\&apos;/g"
 }
 
-# ============================================================
-# Mask epost (for logging)
-# ============================================================
+# Skjuler epost i logger (GDPR dataminimering)
 mask_email() {
   printf '%s' "$1" | sed 's/^\(.\).*\(@.*\)$/\1***\2/; t; s/.*/***/'
 }
 
-# ============================================================
-# PARSE INPUT
-# ============================================================
+# Leser ut nødvendige inputfelt (dataminimering)
 TMP="/tmp/body.$$"
 printf '%s\n' "$KROPP" | tr '&' '\n' > "$TMP"
 
@@ -89,9 +69,7 @@ done < "$TMP"
 
 rm -f "$TMP"
 
-# ============================================================
-# INPUT-VALIDERING
-# ============================================================
+# Sjekker at nødvendige data finnes (GDPR riktighet)
 if [ -z "$E" ]; then
   echo "Epost mangler"
   exit 0
@@ -102,15 +80,11 @@ if [ "$H" != "Liste" ] && [ -z "$P" ]; then
   exit 0
 fi
 
-# ============================================================
-# LOGGING
-# ============================================================
+# Logger hendelse med minst mulig persondata (GDPR ansvarlighet)
 MASKED_EMAIL=$(mask_email "$E")
 echo "app: request mottatt - epost=$MASKED_EMAIL handling=$H" >&2
 
-# ============================================================
-# ESCAPE DATA
-# ============================================================
+# Gjør data trygt før videre bruk (GDPR sikkerhet)
 E_ESC=$(xml_escape "$E")
 P_ESC=$(xml_escape "$P")
 K_ESC=$(xml_escape "$K")
@@ -118,9 +92,7 @@ O_ESC=$(xml_escape "$O")
 T_ESC=$(xml_escape "$T")
 X_ESC=$(xml_escape "$X")
 
-# ============================================================
-# PSEUDONYM-DB
-# ============================================================
+# Bruker pseudonym i stedet for ekte identitet (GDPR pseudonymisering)
 XML_PN="<pseudonym>
 <epost>${E_ESC}</epost>
 <passord>${P_ESC}</passord>
@@ -137,10 +109,7 @@ if [ -z "$N" ]; then
   exit 0
 fi
 
-# ============================================================
-# BIDRAG-DB
-# ============================================================
-
+# Lagrer bidrag uten direkte identitet (GDPR dataminimering)
 XML_B="<bidrag>
 <navn>$(xml_escape "$N")</navn>
 <passord>${P_ESC}</passord>
@@ -155,9 +124,7 @@ URL_B="http://allpodd:82/cgi-bin/index.cgi"
 
 echo "BIDRAG kall til: $URL_B - handling=$H" >&2
 
-# ============================================================
-# HANDLING
-# ============================================================
+# Lar bruker opprette, endre, slette egne data (GDPR rettigheter)
 case "$H" in
 
   Ny)
